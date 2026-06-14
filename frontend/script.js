@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatBtn;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
+    newChatBtn = document.getElementById('newChatBtn');
     
     setupEventListeners();
     createNewSession();
@@ -23,6 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Event Listeners
 function setupEventListeners() {
+    // New chat button
+    newChatBtn.addEventListener('click', () => {
+        if (currentSessionId) {
+            fetch(`${API_URL}/session/${currentSessionId}`, { method: 'DELETE' }).catch(() => {});
+        }
+        createNewSession();
+    });
+
     // Chat functionality
     sendButton.addEventListener('click', sendMessage);
     chatInput.addEventListener('keypress', (e) => {
@@ -125,7 +134,13 @@ function addMessage(content, type, sources = null, isWelcome = false) {
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sources.map(s => {
+                    const lessonMatch = s.label.match(/Lesson\s+(\d+)$/i);
+                    const shortLabel = lessonMatch ? `📖 Lesson ${lessonMatch[1]}` : s.label.split(':')[0].trim();
+                    return s.url
+                        ? `<a class="source-chip linked" href="${s.url}" target="_blank" rel="noopener noreferrer" title="${s.label}">${shortLabel}</a>`
+                        : `<span class="source-chip" title="${s.label}">${shortLabel}</span>`;
+                }).join('')}</div>
             </details>
         `;
     }

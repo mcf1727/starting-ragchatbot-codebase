@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>RAG Chatbot — Query Flow</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+    p.subtitle {
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 40px;
+    }
+    .diagram-wrapper {
+      background: #1e2230;
+      border: 1px solid #2d3348;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 960px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      overflow-x: auto;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* legend */
+    .legend {
+      margin-top: 32px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>RAG Chatbot — Query Flow</h1>
+<p class="subtitle">End-to-end trace: from browser input to Claude API and back</p>
+
+<div class="diagram-wrapper">
+  <div class="mermaid">
+sequenceDiagram
+    autonumber
+
+    box Browser
+      participant U as script.js
+    end
+
+    box Backend
+      participant F as FastAPI<br/>app.py
+      participant R as RAGSystem<br/>rag_system.py
+      participant S as SessionManager<br/>session_manager.py
+      participant AI as AIGenerator<br/>ai_generator.py
+      participant TM as ToolManager<br/>search_tools.py
+      participant VS as VectorStore<br/>vector_store.py
+    end
+
+    box External
+      participant C as Claude API<br/>(Haiku)
+    end
+
+    U->>F: POST /api/query<br/>{ query, session_id }
+
+    F->>R: rag_system.query(query, session_id)
+
+    alt First message
+      R->>S: create_session()
+      S-->>R: "session_1"
+    else Continuing conversation
+      R->>S: get_conversation_history(session_id)
+      S-->>R: formatted past exchanges
+    end
+
+    R->>AI: generate_response(<br/>query, history, tools)
+
+    note over AI,C: ── Claude Call #1 ──
+    AI->>C: system prompt + user message<br/>+ tool definitions
+    C-->>AI: stop_reason: "tool_use"<br/>search_course_content(query, course_name)
+
+    AI->>TM: execute_tool("search_course_content", ...)
+    TM->>VS: search(query, course_name, lesson_number)
+    VS->>VS: _resolve_course_name()<br/>semantic search in course_catalog
+    VS->>VS: _build_filter()<br/>ChromaDB where clause
+    VS-->>TM: top-5 matching chunks
+    TM-->>AI: "[Course – Lesson N]<br/>chunk text …"
+
+    note over AI,C: ── Claude Call #2 ──
+    AI->>C: original messages<br/>+ tool results
+    C-->>AI: final answer text
+
+    AI-->>R: answer string
+    R->>TM: get_last_sources() → reset
+    R->>S: add_exchange(session_id, query, answer)
+    R-->>F: (answer, sources)
+
+    F-->>U: { answer, sources, session_id }
+
+    U->>U: marked.parse(answer)<br/>render markdown + sources panel
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#7c9eff"></div>Browser</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div>FastAPI</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f472b6"></div>Claude API</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>ChromaDB / Vector Store</div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    sequence: {
+      actorMargin: 60,
+      messageMargin: 35,
+      noteMargin: 12,
+      mirrorActors: false,
+      useMaxWidth: true,
+      wrap: true,
+      wrapPadding: 10
+    },
+    themeVariables: {
+      background: '#1e2230',
+      primaryColor: '#2d3a5e',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#4a5580',
+      lineColor: '#64748b',
+      secondaryColor: '#1a2540',
+      tertiaryColor: '#252d45',
+      noteBkgColor: '#1a2540',
+      noteTextColor: '#94a3b8',
+      noteBorderColor: '#2d3a5e',
+      activationBkgColor: '#2d3a5e',
+      activationBorderColor: '#4a5580',
+      sequenceNumberColor: '#94a3b8',
+      actorBkg: '#1a2540',
+      actorBorder: '#4a5580',
+      actorTextColor: '#e2e8f0',
+      actorLineColor: '#4a5580',
+      labelBoxBkgColor: '#1a2540',
+      labelBoxBorderColor: '#2d3a5e',
+      labelTextColor: '#94a3b8',
+      loopTextColor: '#94a3b8',
+      fontFamily: 'Segoe UI, system-ui, sans-serif',
+      fontSize: '13px'
+    }
+  });
+</script>
+</body>
+</html>
