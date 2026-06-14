@@ -5,7 +5,48 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatBtn;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatBtn, themeToggle;
+
+// Theme management
+function initTheme() {
+    // The inline <head> script already set data-theme before first paint.
+    // Here we just sync the button label to whatever theme is active.
+    const active = getActiveTheme();
+    syncToggleLabel(active);
+
+    // If no explicit user preference is stored, follow OS changes automatically.
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            applyTheme(e.matches ? 'dark' : 'light', false);
+        }
+    });
+}
+
+// Returns the currently rendered theme by reading the DOM attribute.
+function getActiveTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+// persist=true saves an explicit user choice; persist=false is for OS-driven changes.
+function applyTheme(theme, persist = true) {
+    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+    if (persist) {
+        localStorage.setItem('theme', theme);
+    }
+    syncToggleLabel(theme);
+}
+
+function syncToggleLabel(theme) {
+    if (!themeToggle) return;
+    const label = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+    themeToggle.setAttribute('aria-label', label);
+    themeToggle.setAttribute('title', label);
+}
+
+function toggleTheme() {
+    // Read from the DOM — it's the single source of truth for what's rendered.
+    applyTheme(getActiveTheme() === 'dark' ? 'light' : 'dark');
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,7 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
     newChatBtn = document.getElementById('newChatBtn');
-    
+    themeToggle = document.getElementById('themeToggle');
+
+    initTheme();
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -24,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Event Listeners
 function setupEventListeners() {
+    // Theme toggle
+    themeToggle.addEventListener('click', toggleTheme);
+
     // New chat button
     newChatBtn.addEventListener('click', () => {
         if (currentSessionId) {
